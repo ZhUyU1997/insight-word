@@ -1,0 +1,2 @@
+- bnc15000.dsl: [ZZ-WordFreq](https://github.com/jjzz/ZZ-WordFreq)
+- lemma.en.txt: [ECDICT](https://github.com/skywind3000/ECDICT)

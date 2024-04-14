@@ -1,0 +1,56 @@
+:root {
+  --INSIGHT_WORD_POPUP_LEFT: unset;
+  --INSIGHT_WORD_POPUP_TOP: unset;
+  --INSIGHT_WORD_POPUP_RIGHT: unset;
+}
+
+.insight-word-enable insight-word.highlight {
+  position: relative;
+  text-decoration: rgb(10, 162, 205) wavy underline;
+}
+.insight-word-enable insight-word.highlight:hover {
+  background-color: rgb(234, 255, 0);
+  mix-blend-mode: difference;
+  /* box-shadow: 0 0 5px 2.5px rgb(234, 255, 0); */
+  color: black;
+  /* border-radius: clamp(5px, 10%, 10px); */
+  text-decoration: inherit;
+}
+.insight-word-popup {
+  display: hidden;
+}
+.insight-word-enable .insight-word-popup.show {
+  all: unset;
+  display: block;
+  position: fixed;
+  left: var(--INSIGHT_WORD_POPUP_LEFT);
+  top: var(--INSIGHT_WORD_POPUP_TOP);
+  right: var(--INSIGHT_WORD_POPUP_RIGHT);
+
+  padding: 10px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  /* background-color: #f0f0f080; */
+  max-width: min(500px, 100vw);
+}
+
+.insight-word-enable .insight-word-popup.show {
+  background: linear-gradient(
+    225deg,
+    rgba(41, 41, 41, 0.1) 17%,
+    rgba(172, 172, 172, 0.1) 74%
+  );
+  /* From https://css.glass */
+  background: rgba(252, 249, 249, 0.2);
+  border-radius: 8px;
+  box-shadow: inset 0px 5px 5px 0px rgba(255, 255, 255, 0.1),
+    inset 0px -5px 5px 0px rgba(172, 172, 172, 0.1),
+    8px 17px 52px -7px rgba(51, 50, 51, 1);
+  backdrop-filter: blur(8.5px);
+  -webkit-backdrop-filter: blur(8.5px);
+  border: 1px solid rgba(252, 249, 249, 0.31);
+}
+
+code insight-word {
+  text-decoration: inherit !important;
+}
