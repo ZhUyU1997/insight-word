@@ -7,7 +7,7 @@ export default defineConfig({
     plugins: [react()],
   }),
   manifest: {
-    permissions: ["menus", "contextMenus", "storage", "browser_action", "tabs"],
+    permissions: ["contextMenus", "storage", "tabs"],
     action: {
       default_title: "配置",
     },
