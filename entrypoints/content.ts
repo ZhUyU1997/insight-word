@@ -4,6 +4,7 @@ import { onMessage, sendMessage } from "./common/messaging";
 import { Unwatch, WatchCallback } from "wxt/storage";
 import { LemmaData } from "./common/define";
 import { logger } from "./common/logger";
+import tinycolor from "tinycolor2";
 
 class Setting {
   static enable = false;
@@ -142,8 +143,8 @@ async function getTranslation(word: string) {
 
   const result1 = translation[_w];
   const result2 = translation[lemma];
-  if (result1) return result1;
-  if (!result1 && result2) {
+  if (result1 && result1 !== "NULL") return result1;
+  if (result2 && result2 !== "NULL") {
     logger("map translation", _w, "=>", result2);
     const text = `${lemma} | ${result2}`;
     translationCache.set(_w, text);
@@ -175,16 +176,29 @@ function onClick(e: MouseEvent) {
   }
 }
 
-let _Popup: HTMLDivElement | null = null;
+let _Popup: HTMLElement | null = null;
+let popupHideTimerId: any = null;
 
 function TranslationPopup() {
   if (!_Popup) {
-    _Popup = document.createElement("div");
+    _Popup = document.createElement("insight-word-popup");
     _Popup.classList.add("insight-word-popup");
     document.body.appendChild(_Popup);
+    function hide() {
+      _Popup?.classList.remove("show");
+    }
+    document.addEventListener("wheel", hide);
+    _Popup.addEventListener("mouseleave", hide);
+    _Popup.addEventListener("mouseenter", () => {
+      clearTimeout(popupHideTimerId);
+    });
   }
 
   return _Popup;
+}
+
+function isLightColor(color: string) {
+  return tinycolor(color).isLight();
 }
 
 async function showTranslation(el: HTMLElement, word: string) {
@@ -193,6 +207,7 @@ async function showTranslation(el: HTMLElement, word: string) {
   logger("showTranslation", translation);
 
   const popup = TranslationPopup();
+
   popup.textContent = translation ? translation : "点击跳转谷歌翻译";
   const { x, y, width, height } = el.getBoundingClientRect();
   const X = x;
@@ -203,16 +218,37 @@ async function showTranslation(el: HTMLElement, word: string) {
   popup.style.setProperty("--INSIGHT_WORD_POPUP_RIGHT", `unset`);
   popup.style.setProperty(
     "--INSIGHT_WORD_POPUP_TOP",
-    `${(Y + height + 10).toFixed()}px`
+    `${(Y + height + 5).toFixed()}px`
   );
 
-  const { x: popupX, width: popupWidth } = popup.getBoundingClientRect();
+  const {
+    x: popupX,
+    y: popupY,
+    width: popupWidth,
+    height: popupHeight,
+  } = popup.getBoundingClientRect();
 
-  const docWidth = document.documentElement.clientWidth || document.body.clientWidth
-  logger(popupX, popupWidth, popupX + popupWidth, docWidth)
+  const docWidth =
+    document.documentElement.clientWidth || document.body.clientWidth;
+  const docHeight =
+    document.documentElement.clientHeight || document.body.clientHeight;
+  const isLightFontColor = isLightColor(
+    getComputedStyle(el).getPropertyValue("color")
+  );
+
+  popup.classList.toggle("dark", isLightFontColor);
+  popup.classList.toggle("light", !isLightFontColor);
+
   if (Math.abs(popupX + popupWidth - docWidth) <= 2) {
     popup.style.setProperty("--INSIGHT_WORD_POPUP_LEFT", `unset`);
     popup.style.setProperty("--INSIGHT_WORD_POPUP_RIGHT", `0px`);
+  }
+
+  if (popupY + popupHeight > docHeight - 2) {
+    popup.style.setProperty(
+      "--INSIGHT_WORD_POPUP_TOP",
+      `${(Y - popupHeight - 5).toFixed()}px`
+    );
   }
 }
 
@@ -220,6 +256,8 @@ function onMouseEnter(e: MouseEvent) {
   const el = e.target as HTMLElement;
   if (!el.classList.contains(HIGHLIGHT_CLASS)) return;
   showTranslation(el, el.textContent ?? "");
+
+  clearTimeout(popupHideTimerId);
 }
 
 function onMouseLeave(e: MouseEvent) {
@@ -227,11 +265,13 @@ function onMouseLeave(e: MouseEvent) {
   if (!el.classList.contains(HIGHLIGHT_CLASS)) return;
   const popup = TranslationPopup();
 
-  popup.classList.remove("show");
+  popupHideTimerId = setTimeout(() => {
+    popup.classList.remove("show");
+  }, 300);
 }
 
 function createHighlight(text: string, percent: number) {
-  logger("createHighlight", text);
+  // logger("createHighlight", text);
   const highlight = document.createElement("insight-word");
   highlight.classList.add(HIGHLIGHT_CLASS);
   highlight.textContent = text;
@@ -243,7 +283,7 @@ function createHighlight(text: string, percent: number) {
   return highlight;
 }
 
-var good_tags_list = [
+var good_tags_list = new Set([
   "P",
   "H1",
   "H2",
@@ -258,13 +298,23 @@ var good_tags_list = [
   "DIV",
   "SPAN",
   "EM",
-];
+  "A",
+  "SUMMARY",
+]);
 
 function mygoodfilter(node: Node) {
   const parentNode = node.parentNode as any;
   const tagName = parentNode?.tagName ?? "";
-  if (good_tags_list.includes(tagName)) return NodeFilter.FILTER_ACCEPT;
-  return NodeFilter.FILTER_SKIP;
+
+  if (!good_tags_list.has(tagName)) return NodeFilter.FILTER_SKIP;
+  if (tagName === "insight-word-popup") return NodeFilter.FILTER_SKIP;
+  const hasFlex =
+    getComputedStyle(parentNode)
+      ?.getPropertyValue("display")
+      ?.includes("flex") ?? false;
+  if (hasFlex) return NodeFilter.FILTER_SKIP;
+
+  return NodeFilter.FILTER_ACCEPT;
 }
 
 function textNodesUnder(el: Node) {
@@ -279,7 +329,7 @@ function textNodesUnder(el: Node) {
 
 var myre = /\w+/g;
 
-function text_to_hl_nodes(text: string, dst: Node[]) {
+function textToHighlightNodes(text: string, dst: Node[]) {
   var lc_text = text; //text.toLowerCase();
   var ws_text = lc_text.replace(
     /[,;()?!`:"'.\s\-\u2013\u2014\u201C\u201D\u2019]/g,
@@ -354,7 +404,7 @@ function doHighlightText(textNodes: Node[]) {
       continue; //pathetic hack to skip json data in text (e.g. google images use it).
     }
     const new_children: Node[] = [];
-    const found_count = text_to_hl_nodes(text, new_children);
+    const found_count = textToHighlightNodes(text, new_children);
 
     const parent_node = textNodes[i].parentNode;
 
@@ -492,27 +542,30 @@ export default defineContentScript({
         }
       });
 
-      document.addEventListener(
-        "DOMNodeInserted",
-        (event) => {
-          if (!Setting.enable) return;
-          var inobj = event.target as HTMLElement;
-          if (!inobj) return;
-          try {
-            if (!inobj.classList.contains(HIGHLIGHT_CLASS)) {
-              findHighlightNode(inobj);
-            }
-          } catch (e) {
-            return;
-          }
-        },
-        false
-      );
+      let observer = new MutationObserver(function (mutationsList) {
+        if (!Setting.enable) return;
 
-      setTimeout(() => {
-        logger("timeout 100");
-        findHighlightNode();
-      }, 100);
+        for (let mutation of mutationsList) {
+          for (let node of mutation.addedNodes) {
+            let inobj = node as HTMLElement;
+            if (!inobj) continue;
+            try {
+              if (!inobj.classList.contains(HIGHLIGHT_CLASS)) {
+                findHighlightNode(inobj);
+              }
+            } catch (e) {
+              return;
+            }
+          }
+        }
+      });
+
+      observer.observe(document, {
+        attributes: false,
+        childList: true,
+        characterData: false,
+        subtree: true,
+      });
 
       setTimeout(() => {
         logger("timeout 1000");

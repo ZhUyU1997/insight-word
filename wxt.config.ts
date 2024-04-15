@@ -13,7 +13,7 @@ export default defineConfig({
     },
   },
   runner: {
-    startUrls: ["https://google.com"],
+    startUrls: ["https://developer.mozilla.org/en-US/"],
     chromiumArgs: ["--window-size=400x300"],
   },
 });
