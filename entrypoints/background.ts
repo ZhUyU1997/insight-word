@@ -49,6 +49,7 @@ export default defineBackground(() => {
     storage.setItem<boolean>("local:enable", true);
     storage.setItem<number>("local:percent", 30);
     storage.setItem<string[]>("local:ignore", []);
+    storage.setItem<string[]>("local:ignore-word", []);
   });
 
   storage.getItem<string[]>("local:ignore").then((data) => {

@@ -1,5 +1,5 @@
 import { browser } from "wxt/browser";
-import "./index.css";
+import "./index.less";
 import { onMessage, sendMessage } from "./common/messaging";
 import { Unwatch, WatchCallback } from "wxt/storage";
 import { LemmaData } from "./common/define";
@@ -40,8 +40,13 @@ class Setting {
 class WordHelper {
   rankMap = new Map<string, number>();
   lemmaMap = new Map<string, string>();
+  ignoreSet = new Set<string>();
 
   getWordRank(word: string) {
+    if (this.ignoreSet.has(word)) {
+      logger("found ignored word:", word);
+      return 0;
+    }
     return this.rankMap.get(word) ?? 0;
   }
 
@@ -51,6 +56,11 @@ class WordHelper {
 
   getWordPercent(word: string) {
     if (this.rankMap.size == 0) {
+      return 0;
+    }
+
+    if (this.ignoreSet.has(word)) {
+      logger("found ignored word:", word);
       return 0;
     }
     return Setting.numberToPercent(this.getWordRank(word) / this.rankMap.size);
@@ -65,6 +75,31 @@ class WordHelper {
   getWordLemmaFast(word: string) {
     return this.lemmaMap.get(word) ?? "";
   }
+  async loadIgnore() {
+    if (this.ignoreSet.size == 0) {
+      logger("load ignore data");
+      const ignore = await storage.getItem<string>("local:ignore-word");
+      if (ignore) {
+        this.ignoreSet = new Set<string>(ignore);
+      } else logger("failed to load ignore");
+    }
+  }
+
+  updataIgnore(data: string[]) {
+    logger("updata ignore data");
+    this.ignoreSet = new Set<string>(data);
+  }
+
+  async ignoreWord(word: string) {
+    logger("ignore word", word);
+    if (this.ignoreSet.add(word)) {
+      await storage.setItem<string[]>(
+        "local:ignore-word",
+        Array.from(this.ignoreSet.keys())
+      );
+    }
+  }
+
   async loadRankData() {
     if (this.rankMap.size == 0) {
       logger("load rank data");
@@ -95,12 +130,16 @@ class WordHelper {
 
   hasLoad = false;
   async loadData() {
-    await Promise.all([this.loadRankData(), this.loadLemmaData()]);
+    await Promise.all([
+      this.loadIgnore(),
+      this.loadRankData(),
+      this.loadLemmaData(),
+    ]);
   }
 
   static wordRe = new RegExp("^[a-z][a-z-]*$");
 
-  match(word: string): [false] | [true, number] {
+  match(word: string): [false] | [true, number, string] {
     const word_lower = word.toLowerCase();
 
     if (!WordHelper.wordRe.test(word_lower)) return [false];
@@ -118,7 +157,7 @@ class WordHelper {
       return [false];
     }
 
-    return [true, percent];
+    return [true, percent, lemma];
   }
 }
 
@@ -176,25 +215,86 @@ function onClick(e: MouseEvent) {
   }
 }
 
-let _Popup: HTMLElement | null = null;
 let popupHideTimerId: any = null;
 
-function TranslationPopup() {
-  if (!_Popup) {
-    _Popup = document.createElement("insight-word-popup");
-    _Popup.classList.add("insight-word-popup");
-    document.body.appendChild(_Popup);
-    function hide() {
-      _Popup?.classList.remove("show");
-    }
-    document.addEventListener("wheel", hide);
-    _Popup.addEventListener("mouseleave", hide);
-    _Popup.addEventListener("mouseenter", () => {
-      clearTimeout(popupHideTimerId);
-    });
-  }
+class TranslationPopup {
+  static popup: HTMLElement | null = null;
+  static deleteIcon: HTMLElement | null = null;
+  static p: HTMLElement | null = null;
+  static currentWord: HTMLElement | null = null;
 
-  return _Popup;
+  static get() {
+    if (!TranslationPopup.popup) {
+      const popup = document.createElement("div");
+      popup.classList.add("insight-word-popup", "insight-word-ignore");
+      document.body.appendChild(popup);
+      function hide() {
+        TranslationPopup._hide();
+      }
+      document.addEventListener("wheel", hide);
+      popup.addEventListener("mouseleave", hide);
+      popup.addEventListener("mouseenter", () => {
+        clearTimeout(popupHideTimerId);
+      });
+
+      {
+        const deleteIcon = document.createElement("div");
+        deleteIcon.classList.add("insight-word-ignore", "delete");
+        deleteIcon.textContent = "移除";
+        function hide() {
+          TranslationPopup.hide();
+        }
+        document.addEventListener("wheel", hide);
+        deleteIcon.addEventListener("mouseleave", hide);
+        deleteIcon.addEventListener("mouseenter", () => {
+          clearTimeout(popupHideTimerId);
+        });
+        deleteIcon.addEventListener("click", () => {
+          const lemma = TranslationPopup.currentWord?.dataset.lemma ?? "";
+
+          if (lemma) {
+            Helper.ignoreWord(lemma);
+            updateHightlightStyleByIgnore();
+          }
+          TranslationPopup._hide();
+        });
+        TranslationPopup.deleteIcon = deleteIcon;
+        popup.appendChild(deleteIcon);
+      }
+
+      {
+        const p = document.createElement("p");
+
+        popup.appendChild(p);
+        TranslationPopup.p = p;
+      }
+      TranslationPopup.popup = popup;
+    }
+
+    return TranslationPopup.popup;
+  }
+  static setText(text: string) {
+    const p = TranslationPopup.p;
+    if (p) p.textContent = text;
+  }
+  static setCurrent(el: HTMLElement) {
+    TranslationPopup.currentWord = el;
+  }
+  static _hide() {
+    clearTimeout(popupHideTimerId);
+    TranslationPopup.currentWord = null;
+    TranslationPopup.popup?.classList.remove("show");
+  }
+  static hide() {
+    clearTimeout(popupHideTimerId);
+    popupHideTimerId = setTimeout(() => {
+      TranslationPopup.currentWord = null;
+      TranslationPopup.popup?.classList.remove("show");
+    }, 300);
+  }
+  static show() {
+    TranslationPopup.popup?.classList.add("show");
+  }
 }
 
 function isLightColor(color: string) {
@@ -206,9 +306,9 @@ async function showTranslation(el: HTMLElement, word: string) {
   const translation = await getTranslation(word);
   logger("showTranslation", translation);
 
-  const popup = TranslationPopup();
-
-  popup.textContent = translation ? translation : "点击跳转谷歌翻译";
+  const popup = TranslationPopup.get();
+  TranslationPopup.setText(translation ? translation : "点击跳转谷歌翻译");
+  TranslationPopup.setCurrent(el);
   const { x, y, width, height } = el.getBoundingClientRect();
   const X = x;
   const Y = y;
@@ -218,7 +318,7 @@ async function showTranslation(el: HTMLElement, word: string) {
   popup.style.setProperty("--INSIGHT_WORD_POPUP_RIGHT", `unset`);
   popup.style.setProperty(
     "--INSIGHT_WORD_POPUP_TOP",
-    `${(Y + height + 5).toFixed()}px`
+    `${(Y + height + 0).toFixed()}px`
   );
 
   const {
@@ -256,26 +356,22 @@ function onMouseEnter(e: MouseEvent) {
   const el = e.target as HTMLElement;
   if (!el.classList.contains(HIGHLIGHT_CLASS)) return;
   showTranslation(el, el.textContent ?? "");
-
   clearTimeout(popupHideTimerId);
 }
 
 function onMouseLeave(e: MouseEvent) {
   const el = e.target as HTMLElement;
   if (!el.classList.contains(HIGHLIGHT_CLASS)) return;
-  const popup = TranslationPopup();
-
-  popupHideTimerId = setTimeout(() => {
-    popup.classList.remove("show");
-  }, 300);
+  TranslationPopup.hide();
 }
 
-function createHighlight(text: string, percent: number) {
+function createHighlight(text: string, percent: number, lemma: string) {
   // logger("createHighlight", text);
   const highlight = document.createElement("insight-word");
   highlight.classList.add(HIGHLIGHT_CLASS);
   highlight.textContent = text;
   highlight.dataset.percent = percent.toFixed(0);
+  highlight.dataset.lemma = lemma;
   highlight.addEventListener("click", onClick);
 
   highlight.addEventListener("mouseenter", onMouseEnter);
@@ -307,7 +403,8 @@ function mygoodfilter(node: Node) {
   const tagName = parentNode?.tagName ?? "";
 
   if (!good_tags_list.has(tagName)) return NodeFilter.FILTER_SKIP;
-  if (tagName === "insight-word-popup") return NodeFilter.FILTER_SKIP;
+  if (parentNode.classList?.has?.("insight-word-ignore"))
+    return NodeFilter.FILTER_SKIP;
   const hasFlex =
     getComputedStyle(parentNode)
       ?.getPropertyValue("display")
@@ -345,16 +442,18 @@ function textToHighlightNodes(text: string, dst: Node[]) {
     begin: number;
     end: number;
     percent: number;
+    lemma: string;
   }> = [];
   while ((array1 = myre.exec(lc_text)) !== null) {
     const word = array1[0];
-    const [result, percent] = Helper.match(word);
+    const [result, percent, lemma] = Helper.match(word);
     if (result) {
       matchs.push({
         word,
         begin: array1.index,
         end: myre.lastIndex,
         percent,
+        lemma,
       });
     }
   }
@@ -373,7 +472,11 @@ function textToHighlightNodes(text: string, dst: Node[]) {
     last_hl_end_pos = match.end;
 
     dst.push(
-      createHighlight(text.slice(match.begin, last_hl_end_pos), match.percent)
+      createHighlight(
+        text.slice(match.begin, last_hl_end_pos),
+        match.percent,
+        match.lemma
+      )
     );
   }
 
@@ -439,15 +542,29 @@ function toggleHightlightStyle(enable = Setting.enable) {
 function updateHightlightStyleByPercent() {
   logger("updateHightlightStyleByPercent");
 
-  if (Setting.enable) {
-    document.querySelectorAll("insight-word").forEach((i) => {
-      const e = i as HTMLElement;
-      if (e.dataset?.percent) {
-        const percent = parseInt(e.dataset.percent);
-        i.classList.toggle(HIGHLIGHT_CLASS, Setting.inRange(percent));
-      }
-    });
-  }
+  document.querySelectorAll("insight-word").forEach((i) => {
+    const e = i as HTMLElement;
+    if (e.dataset?.percent) {
+      const percent = parseInt(e.dataset.percent);
+      i.classList.toggle(HIGHLIGHT_CLASS, Setting.inRange(percent));
+    }
+  });
+}
+
+function updateHightlightStyleByIgnore() {
+  logger("updateHightlightStyleByIgnore");
+
+  document.querySelectorAll("insight-word").forEach((i) => {
+    const e = i as HTMLElement;
+    const lemma = e.dataset?.lemma ?? "";
+
+    if (lemma) {
+      const percent = Helper.getWordPercent(lemma);
+
+      e.dataset.percent = percent.toFixed();
+      i.classList.toggle(HIGHLIGHT_CLASS, Setting.inRange(percent));
+    }
+  });
 }
 
 export default defineContentScript({
@@ -502,9 +619,18 @@ export default defineContentScript({
         }
       };
 
+      const watchCbIgnoreWord: WatchCallback<string[] | null> = (
+        newValue,
+        oldValue
+      ) => {
+        logger("watch local:ignore-word", newValue);
+        if (newValue) Helper.updataIgnore(newValue);
+        updateHightlightStyleByIgnore();
+      };
       const syncSetting = async () => {
         const enable = await storage.getItem<boolean>("local:enable");
         const percent = await storage.getItem<number>("local:percent");
+        const ignoreWord = await storage.getItem<string[]>("local:ignore-word");
 
         if (enable !== Setting.enable) {
           watchCbEnable(enable, Setting.enable);
@@ -512,6 +638,9 @@ export default defineContentScript({
 
         if (percent !== Setting.filterPercent) {
           watchCbFilter(percent, Setting.filterPercent);
+        }
+        if (ignoreWord?.length !== Helper.ignoreSet.size) {
+          watchCbIgnoreWord(ignoreWord, []);
         }
       };
 
@@ -528,6 +657,9 @@ export default defineContentScript({
         unwatchAll();
         unwatchList.push(storage.watch<boolean>("local:enable", watchCbEnable));
         unwatchList.push(storage.watch<number>("local:percent", watchCbFilter));
+        unwatchList.push(
+          storage.watch<string[]>("local:ignore-word", watchCbIgnoreWord)
+        );
       };
 
       watchAll();

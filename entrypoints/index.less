@@ -1,0 +1,100 @@
+.insight-word-enable {
+  insight-word.highlight {
+    display: inline;
+    position: relative;
+    text-decoration: rgba(10, 163, 205, 0.491) wavy underline;
+  }
+  insight-word.highlight:hover {
+    /* background-color: rgb(10, 162, 205); */
+    /* box-shadow: 0 0 5px 2.5px rgb(234, 255, 0); */
+    /* color: black; */
+    /* border-radius: clamp(5px, 10%, 10px); */
+    /* text-decoration: inherit; */
+  }
+
+  .insight-word-popup {
+    all: unset;
+    display: hidden;
+    position: relative;
+    opacity: 0;
+    z-index: 100000000;
+    font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+    transition: opacity 0.2s ease-out;
+
+    --INSIGHT_WORD_POPUP_LEFT: unset;
+    --INSIGHT_WORD_POPUP_TOP: unset;
+    --INSIGHT_WORD_POPUP_RIGHT: unset;
+    p {
+      all: unset;
+    }
+
+    .delete {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background-color: rgba(241, 46, 46, 0.712);
+      // background-image: url("data:image/svg+xml,%3Csvg t='1713193778415' class='icon' viewBox='0 0 1024 1024' version='1.1' xmlns='http://www.w3.org/2000/svg' p-id='4263' width='200' height='200'%3E%3Cpath d='M784 288.96l-56.56-56.576L512.464 447.36 297.504 232.384l-56.56 56.576 214.96 214.96L240.96 718.896l56.56 56.56L512.464 560.48l214.976 214.976L784 718.88 569.04 503.92z' fill='%23ffffff' p-id='4264'%3E%3C/path%3E%3C/svg%3E");
+      background-size: 100% 100%;
+      border-radius: 10px;
+      height: 20px;
+      font-size: 8pt;
+      font-weight: 300;
+      line-height: 100%;
+      text-align: center;
+      // vertical-align: middle;
+      padding: 6px;
+      user-select: none;
+      position: absolute;
+      right: calc(100% + 5px);
+      width: max-content;
+      top: 3px;
+    }
+  }
+
+  .insight-word-popup.show {
+    display: block;
+    position: fixed;
+    opacity: 1;
+    left: var(--INSIGHT_WORD_POPUP_LEFT);
+    top: var(--INSIGHT_WORD_POPUP_TOP);
+    right: var(--INSIGHT_WORD_POPUP_RIGHT);
+
+    padding: 10px;
+    font-size: 10pt;
+    font-weight: 500;
+    /* background-color: #f0f0f080; */
+    max-width: min(300px, 100vw);
+  }
+  .insight-word-popup.show {
+    background: linear-gradient(
+      225deg,
+      rgba(41, 41, 41, 0.1) 17%,
+      rgba(172, 172, 172, 0.1) 74%
+    );
+    /* From https://css.glass */
+    background: rgba(252, 249, 249, 0.2);
+    border-radius: 8px;
+    box-shadow: inset 0px 5px 5px 0px rgba(255, 255, 255, 0.1),
+      inset 0px -5px 5px 0px rgba(172, 172, 172, 0.1),
+      8px 17px 52px -7px rgba(51, 50, 51, 1), 0px 3px 5px 0px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(3.5px);
+    -webkit-backdrop-filter: blur(3.5px);
+    border: 1px solid rgba(252, 249, 249, 0.31);
+  }
+
+  .insight-word-popup.show.dark {
+    color: white;
+    box-shadow: inset 0px 5px 5px 0px rgba(255, 255, 255, 0.1),
+      inset 0px -5px 5px 0px rgba(172, 172, 172, 0.3),
+      8px 17px 52px -7px rgba(252, 252, 252, 0.8),
+      0px 3px 5px 0px rgba(255, 255, 255, 0.3);
+  }
+
+  .insight-word-popup.show.light {
+    color: black;
+  }
+
+  code insight-word {
+    text-decoration: inherit !important;
+  }
+}
