@@ -7,6 +7,7 @@ export default defineConfig({
     plugins: [react()],
   }),
   manifest: {
+    name: "单词洞察力",
     permissions: ["contextMenus", "storage", "tabs"],
     action: {
       default_title: "配置",
