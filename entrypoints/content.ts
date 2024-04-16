@@ -44,7 +44,7 @@ class WordHelper {
 
   getWordRank(word: string) {
     if (this.ignoreSet.has(word)) {
-      logger("found ignored word:", word);
+      logger.log("found ignored word:", word);
       return 0;
     }
     return this.rankMap.get(word) ?? 0;
@@ -60,7 +60,7 @@ class WordHelper {
     }
 
     if (this.ignoreSet.has(word)) {
-      logger("found ignored word:", word);
+      logger.log("found ignored word:", word);
       return 0;
     }
     return Setting.numberToPercent(this.getWordRank(word) / this.rankMap.size);
@@ -77,21 +77,21 @@ class WordHelper {
   }
   async loadIgnore() {
     if (this.ignoreSet.size == 0) {
-      logger("load ignore data");
+      logger.log("load ignore data");
       const ignore = await storage.getItem<string>("local:ignore-word");
       if (ignore) {
         this.ignoreSet = new Set<string>(ignore);
-      } else logger("failed to load ignore");
+      } else logger.log("failed to load ignore");
     }
   }
 
   updataIgnore(data: string[]) {
-    logger("updata ignore data");
+    logger.log("updata ignore data");
     this.ignoreSet = new Set<string>(data);
   }
 
   async ignoreWord(word: string) {
-    logger("ignore word", word);
+    logger.log("ignore word", word);
     if (this.ignoreSet.add(word)) {
       await storage.setItem<string[]>(
         "local:ignore-word",
@@ -102,18 +102,18 @@ class WordHelper {
 
   async loadRankData() {
     if (this.rankMap.size == 0) {
-      logger("load rank data");
+      logger.log("load rank data");
       const rank = await storage.getItem<string[]>("local:rank");
       if (rank) {
         this.rankMap = new Map<string, number>(
           rank.map((item, index) => [item, index + 1])
         );
-      } else logger("failed to load rank");
+      } else logger.log("failed to load rank");
     }
   }
   async loadLemmaData() {
     if (this.lemmaMap.size == 0) {
-      logger("load lemma data");
+      logger.log("load lemma data");
       const lemma = await storage.getItem<LemmaData>("local:lemma");
       if (lemma) {
         const array = lemma.reduce<Array<[string, string]>>(
@@ -124,7 +124,7 @@ class WordHelper {
           []
         );
         this.lemmaMap = new Map<string, string>(array);
-      } else logger("failed to load lemma");
+      } else logger.log("failed to load lemma");
     }
   }
 
@@ -164,6 +164,7 @@ class WordHelper {
 const Helper = new WordHelper();
 
 const HIGHLIGHT_CLASS = "highlight";
+const HIGHLIGHT_IGNORE_CLASS = "insight-word-ignore";
 
 const translationCache = new Map<string, string>();
 async function getTranslation(word: string) {
@@ -172,6 +173,8 @@ async function getTranslation(word: string) {
   const value = translationCache.get(_w);
 
   if (value) return value;
+
+  logger.log("get translation from bg");
   const translation = await sendMessage("translation", {
     words: [_w, lemma],
   });
@@ -184,7 +187,7 @@ async function getTranslation(word: string) {
   const result2 = translation[lemma];
   if (result1 && result1 !== "NULL") return result1;
   if (result2 && result2 !== "NULL") {
-    logger("map translation", _w, "=>", result2);
+    logger.log("map translation", _w, "=>", result2);
     const text = `${lemma} | ${result2}`;
     translationCache.set(_w, text);
     return text;
@@ -226,26 +229,30 @@ class TranslationPopup {
   static get() {
     if (!TranslationPopup.popup) {
       const popup = document.createElement("div");
-      popup.classList.add("insight-word-popup", "insight-word-ignore");
+      popup.classList.add("insight-word-popup", HIGHLIGHT_IGNORE_CLASS);
       document.body.appendChild(popup);
-      function hide() {
-        TranslationPopup._hide();
-      }
-      document.addEventListener("wheel", hide);
-      popup.addEventListener("mouseleave", hide);
+
+      document.addEventListener("wheel", () => {
+        TranslationPopup.hideDirectly();
+      });
+      popup.addEventListener("mouseleave", () => {
+        TranslationPopup.hide();
+      });
       popup.addEventListener("mouseenter", () => {
         clearTimeout(popupHideTimerId);
       });
 
       {
         const deleteIcon = document.createElement("div");
-        deleteIcon.classList.add("insight-word-ignore", "delete");
+        deleteIcon.classList.add(HIGHLIGHT_IGNORE_CLASS, "delete");
         deleteIcon.textContent = "移除";
-        function hide() {
+
+        document.addEventListener("wheel", () => {
           TranslationPopup.hide();
-        }
-        document.addEventListener("wheel", hide);
-        deleteIcon.addEventListener("mouseleave", hide);
+        });
+        deleteIcon.addEventListener("mouseleave", () => {
+          TranslationPopup.hide();
+        });
         deleteIcon.addEventListener("mouseenter", () => {
           clearTimeout(popupHideTimerId);
         });
@@ -256,7 +263,7 @@ class TranslationPopup {
             Helper.ignoreWord(lemma);
             updateHightlightStyleByIgnore();
           }
-          TranslationPopup._hide();
+          TranslationPopup.hideDirectly();
         });
         TranslationPopup.deleteIcon = deleteIcon;
         popup.appendChild(deleteIcon);
@@ -264,7 +271,7 @@ class TranslationPopup {
 
       {
         const p = document.createElement("p");
-
+        p.classList.add(HIGHLIGHT_IGNORE_CLASS);
         popup.appendChild(p);
         TranslationPopup.p = p;
       }
@@ -280,7 +287,7 @@ class TranslationPopup {
   static setCurrent(el: HTMLElement) {
     TranslationPopup.currentWord = el;
   }
-  static _hide() {
+  static hideDirectly() {
     clearTimeout(popupHideTimerId);
     TranslationPopup.currentWord = null;
     TranslationPopup.popup?.classList.remove("show");
@@ -288,8 +295,7 @@ class TranslationPopup {
   static hide() {
     clearTimeout(popupHideTimerId);
     popupHideTimerId = setTimeout(() => {
-      TranslationPopup.currentWord = null;
-      TranslationPopup.popup?.classList.remove("show");
+      TranslationPopup.hideDirectly()
     }, 300);
   }
   static show() {
@@ -303,8 +309,10 @@ function isLightColor(color: string) {
 
 async function showTranslation(el: HTMLElement, word: string) {
   if (!word) return;
+  TranslationPopup.hideDirectly()
+
   const translation = await getTranslation(word);
-  logger("showTranslation", translation);
+  logger.log("showTranslation", translation);
 
   const popup = TranslationPopup.get();
   TranslationPopup.setText(translation ? translation : "点击跳转谷歌翻译");
@@ -366,7 +374,7 @@ function onMouseLeave(e: MouseEvent) {
 }
 
 function createHighlight(text: string, percent: number, lemma: string) {
-  // logger("createHighlight", text);
+  // logger.log("createHighlight", text);
   const highlight = document.createElement("insight-word");
   highlight.classList.add(HIGHLIGHT_CLASS);
   highlight.textContent = text;
@@ -403,7 +411,7 @@ function mygoodfilter(node: Node) {
   const tagName = parentNode?.tagName ?? "";
 
   if (!good_tags_list.has(tagName)) return NodeFilter.FILTER_SKIP;
-  if (parentNode.classList?.has?.("insight-word-ignore"))
+  if (parentNode.classList?.has?.(HIGHLIGHT_IGNORE_CLASS))
     return NodeFilter.FILTER_SKIP;
   const hasFlex =
     getComputedStyle(parentNode)
@@ -526,7 +534,7 @@ function doHighlightText(textNodes: Node[]) {
 }
 
 function findHighlightNode(node: Node = document.body) {
-  logger("findHighlightNode");
+  logger.log("findHighlightNode");
 
   if (Setting.enable) {
     Helper.loadData();
@@ -535,12 +543,12 @@ function findHighlightNode(node: Node = document.body) {
 }
 
 function toggleHightlightStyle(enable = Setting.enable) {
-  logger("toggleHightlightStyle", enable);
+  logger.log("toggleHightlightStyle", enable);
   document.body.classList.toggle("insight-word-enable", enable);
 }
 
 function updateHightlightStyleByPercent() {
-  logger("updateHightlightStyleByPercent");
+  logger.log("updateHightlightStyleByPercent");
 
   document.querySelectorAll("insight-word").forEach((i) => {
     const e = i as HTMLElement;
@@ -552,7 +560,7 @@ function updateHightlightStyleByPercent() {
 }
 
 function updateHightlightStyleByIgnore() {
-  logger("updateHightlightStyleByIgnore");
+  logger.log("updateHightlightStyleByIgnore");
 
   document.querySelectorAll("insight-word").forEach((i) => {
     const e = i as HTMLElement;
@@ -572,19 +580,19 @@ export default defineContentScript({
   allFrames: true,
   runAt: "document_idle",
   main() {
-    logger("Hello content.");
+    logger.log("Hello content.");
 
     const init = async () => {
       const ignore = await sendMessage("ignoreListHas", location.hostname);
       if (ignore) {
-        logger("ignore it");
+        logger.log("ignore it");
         return;
       }
 
       const enable = await storage.getItem<boolean>("local:enable");
       const percent = await storage.getItem<number>("local:percent");
-      logger("local:enable", enable);
-      logger("local:percent", percent);
+      logger.log("local:enable", enable);
+      logger.log("local:percent", percent);
 
       Setting.trySetFilterPercent(percent);
       if (Setting.trySetEnable(enable)) {
@@ -599,7 +607,7 @@ export default defineContentScript({
         newValue,
         oldValue
       ) => {
-        logger("watch local:enable", newValue);
+        logger.log("watch local:enable", newValue);
         if (Setting.trySetEnable(newValue)) {
           toggleHightlightStyle(Setting.enable);
         }
@@ -609,7 +617,7 @@ export default defineContentScript({
         newValue,
         oldValue
       ) => {
-        logger("watch local:enable", newValue);
+        logger.log("watch local:enable", newValue);
 
         if (Setting.trySetFilterPercent(newValue)) {
           if (newValue && oldValue && newValue < oldValue) {
@@ -623,7 +631,7 @@ export default defineContentScript({
         newValue,
         oldValue
       ) => {
-        logger("watch local:ignore-word", newValue);
+        logger.log("watch local:ignore-word", newValue);
         if (newValue) Helper.updataIgnore(newValue);
         updateHightlightStyleByIgnore();
       };
@@ -665,7 +673,7 @@ export default defineContentScript({
       watchAll();
 
       document.addEventListener("visibilitychange", () => {
-        logger("visibilitychange", document.visibilityState);
+        logger.log("visibilitychange", document.visibilityState);
         if (document.visibilityState === "visible") {
           syncSetting();
           watchAll();
@@ -682,7 +690,10 @@ export default defineContentScript({
             let inobj = node as HTMLElement;
             if (!inobj) continue;
             try {
-              if (!inobj.classList.contains(HIGHLIGHT_CLASS)) {
+              if (
+                !inobj.classList.contains(HIGHLIGHT_CLASS) &&
+                !inobj.classList.contains(HIGHLIGHT_IGNORE_CLASS)
+              ) {
                 findHighlightNode(inobj);
               }
             } catch (e) {
@@ -700,7 +711,7 @@ export default defineContentScript({
       });
 
       setTimeout(() => {
-        logger("timeout 1000");
+        logger.log("timeout 1000");
         findHighlightNode();
       }, 1000);
     };

@@ -27,11 +27,32 @@ async function loadTranslationFile(): Promise<Array<[string, string]>> {
   return loadJsonFile("/data/translation.json");
 }
 
-let translationMap = new Map<string, string>();
+class BGHelper {
+  static translationMap = new Map<string, string>();
+  static loadTranslationFilePromise = Promise.resolve();
+  static ignoreList = new Set<string>();
 
-let ignoreList = new Set<string>();
+  static loadTranslationData() {
+    return (BGHelper.loadTranslationFilePromise = loadTranslationFile().then(
+      (data) => {
+        BGHelper.translationMap = new Map<string, string>(data);
+      }
+    ));
+  }
+
+  static waitTranslationData(ms: number) {
+    return Promise.race([
+      BGHelper.loadTranslationFilePromise,
+      new Promise<void>((r) => setTimeout(() => r(), ms)),
+    ]);
+  }
+  static translateWord(word: string) {
+    return BGHelper.translationMap.get(word);
+  }
+}
+
 export default defineBackground(() => {
-  logger("Hello background!", { id: browser.runtime.id });
+  logger.log("Hello background!", { id: browser.runtime.id });
   browser.contextMenus.create({
     id: "addWords",
     title: 'Send "%s" to background',
@@ -47,43 +68,56 @@ export default defineBackground(() => {
     });
 
     storage.setItem<boolean>("local:enable", true);
-    storage.setItem<number>("local:percent", 30);
+    storage.getItem<number>("local:percent").then((value) => {
+      if (!value) storage.setItem<number>("local:percent", 30);
+    });
     storage.setItem<string[]>("local:ignore", []);
-    storage.setItem<string[]>("local:ignore-word", []);
+    storage.getItem<string[]>("local:ignore-word").then((value) => {
+      if (!value) storage.setItem<string[]>("local:ignore-word", []);
+    });
   });
 
   storage.getItem<string[]>("local:ignore").then((data) => {
     if (data) {
-      data.forEach((i) => ignoreList.add(i));
+      data.forEach((i) => BGHelper.ignoreList.add(i));
     }
   });
 
-  loadTranslationFile().then((data) => {
-    translationMap = new Map<string, string>(data);
-  });
+  BGHelper.loadTranslationData();
 
-  onMessage("translation", (message) => {
+  onMessage("translation", async (message) => {
+    await BGHelper.waitTranslationData(500);
     return Object.fromEntries(
-      message.data.words.map((w) => [w, translationMap.get(w) ?? ""])
+      message.data.words.map((w) => [w, BGHelper.translateWord(w) ?? ""])
     );
   });
 
   onMessage("ignoreListHas", (message) => {
-    logger("ignoreListHas", message.data, ignoreList.has(message.data));
+    logger.log(
+      "ignoreListHas",
+      message.data,
+      BGHelper.ignoreList.has(message.data)
+    );
 
-    return ignoreList.has(message.data);
+    return BGHelper.ignoreList.has(message.data);
   });
 
   onMessage("ignoreListAdd", (message) => {
-    logger("ignoreListAdd", message.data);
-    if (ignoreList.add(message.data))
-      storage.setItem<string[]>("local:ignore", Array.from(ignoreList.keys()));
+    logger.log("ignoreListAdd", message.data);
+    if (BGHelper.ignoreList.add(message.data))
+      storage.setItem<string[]>(
+        "local:ignore",
+        Array.from(BGHelper.ignoreList.keys())
+      );
   });
 
   onMessage("ignoreListRemove", (message) => {
-    logger("ignoreListRemove", message.data);
-    if (ignoreList.delete(message.data))
-      storage.setItem<string[]>("local:ignore", Array.from(ignoreList.keys()));
+    logger.log("ignoreListRemove", message.data);
+    if (BGHelper.ignoreList.delete(message.data))
+      storage.setItem<string[]>(
+        "local:ignore",
+        Array.from(BGHelper.ignoreList.keys())
+      );
   });
 
   browser.contextMenus.onClicked.addListener(function (info, tab) {
@@ -104,7 +138,7 @@ export default defineBackground(() => {
               pos: pos,
             })
             .then((response) => {
-              logger("sended!");
+              logger.log("sended!");
             });
         });
     }
