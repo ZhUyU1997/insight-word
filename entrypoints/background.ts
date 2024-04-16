@@ -9,11 +9,6 @@ import { LemmaData } from "./common/define";
 import { logger } from "./common/logger";
 import { IsSupported } from "./common/utils";
 
-async function getMeaning(word: string) {
-  // let response = await fetch("https://cn.bing.com/dict/search?q=" + word);
-  // let data = await response.text();
-  return `getMeaning of ${word}`;
-}
 async function loadJsonFile(path: PublicPath) {
   const file_path = browser.runtime.getURL(path);
 
@@ -103,12 +98,6 @@ class BGHelper {
 
 export default defineBackground(async () => {
   logger.log("Hello background!", { id: browser.runtime.id });
-  browser.contextMenus.create({
-    id: "addWords",
-    title: 'Send "%s" to background',
-    contexts: ["all"],
-  });
-
   browser.runtime.onInstalled.addListener(() => {
     loadRankFile().then((data) => {
       storage.setItem<string[]>("local:rank", data);
