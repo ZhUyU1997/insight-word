@@ -1,7 +1,13 @@
 import { PublicPath } from "wxt/browser";
-import { onMessage } from "./common/messaging";
+import {
+  GlobalMode,
+  SitMode,
+  SiteModeStorage,
+  onMessage,
+} from "./common/messaging";
 import { LemmaData } from "./common/define";
 import { logger } from "./common/logger";
+import { IsSupported } from "./common/utils";
 
 async function getMeaning(word: string) {
   // let response = await fetch("https://cn.bing.com/dict/search?q=" + word);
@@ -30,7 +36,8 @@ async function loadTranslationFile(): Promise<Array<[string, string]>> {
 class BGHelper {
   static translationMap = new Map<string, string>();
   static loadTranslationFilePromise = Promise.resolve();
-  static ignoreList = new Set<string>();
+  static siteModeRecord: SiteModeStorage = {};
+  static mode: GlobalMode = "enable";
 
   static loadTranslationData() {
     return (BGHelper.loadTranslationFilePromise = loadTranslationFile().then(
@@ -49,9 +56,52 @@ class BGHelper {
   static translateWord(word: string) {
     return BGHelper.translationMap.get(word);
   }
+
+  static getSiteMode(hostName: string) {
+    return BGHelper.siteModeRecord[hostName] ?? "follow";
+  }
+  static setSiteMode(hostName: string, mode: SitMode) {
+    if (mode !== BGHelper.siteModeRecord[hostName]) {
+      BGHelper.siteModeRecord[hostName] = mode;
+      BGHelper.syncSiteModeToStorage();
+    }
+  }
+  static loadSiteMode() {
+    return storage.getItem<SiteModeStorage>("local:site-mode").then((data) => {
+      if (!data) storage.setItem<SiteModeStorage>("local:site-mode", {});
+      BGHelper.siteModeRecord = data ?? {};
+    });
+  }
+
+  static async loadMode() {
+    const mode = await storage.getItem<GlobalMode>("local:mode");
+    if (!mode) storage.setItem<GlobalMode>("local:mode", "enable");
+
+    storage.watch<GlobalMode>("local:mode", (newValue) => {
+      BGHelper.mode = newValue ?? "enable";
+    });
+    BGHelper.mode = mode ?? "enable";
+  }
+  static syncSiteModeToStorage() {
+    return storage.setItem<SiteModeStorage>(
+      "local:site-mode",
+      BGHelper.siteModeRecord
+    );
+  }
+
+  static async load() {
+    const precent = await storage.getItem<number>("local:percent");
+    if (!precent) storage.setItem<number>("local:percent", 30);
+    const ignore = storage.getItem<string[]>("local:ignore-word");
+    if (!ignore) storage.setItem<string[]>("local:ignore-word", []);
+
+    await BGHelper.loadSiteMode();
+    await BGHelper.loadMode();
+    await BGHelper.loadTranslationData();
+  }
 }
 
-export default defineBackground(() => {
+export default defineBackground(async () => {
   logger.log("Hello background!", { id: browser.runtime.id });
   browser.contextMenus.create({
     id: "addWords",
@@ -66,24 +116,9 @@ export default defineBackground(() => {
     loadLemmaFile().then((data) => {
       storage.setItem<LemmaData>("local:lemma", data);
     });
-
-    storage.setItem<boolean>("local:enable", true);
-    storage.getItem<number>("local:percent").then((value) => {
-      if (!value) storage.setItem<number>("local:percent", 30);
-    });
-    storage.setItem<string[]>("local:ignore", []);
-    storage.getItem<string[]>("local:ignore-word").then((value) => {
-      if (!value) storage.setItem<string[]>("local:ignore-word", []);
-    });
   });
 
-  storage.getItem<string[]>("local:ignore").then((data) => {
-    if (data) {
-      data.forEach((i) => BGHelper.ignoreList.add(i));
-    }
-  });
-
-  BGHelper.loadTranslationData();
+  await BGHelper.load();
 
   onMessage("translation", async (message) => {
     await BGHelper.waitTranslationData(500);
@@ -92,55 +127,22 @@ export default defineBackground(() => {
     );
   });
 
-  onMessage("ignoreListHas", (message) => {
-    logger.log(
-      "ignoreListHas",
-      message.data,
-      BGHelper.ignoreList.has(message.data)
-    );
-
-    return BGHelper.ignoreList.has(message.data);
+  onMessage("getSiteMode", (message) => {
+    logger.log("getSiteMode", message.data);
+    return BGHelper.getSiteMode(message.data);
   });
 
-  onMessage("ignoreListAdd", (message) => {
-    logger.log("ignoreListAdd", message.data);
-    if (BGHelper.ignoreList.add(message.data))
-      storage.setItem<string[]>(
-        "local:ignore",
-        Array.from(BGHelper.ignoreList.keys())
-      );
+  onMessage("setSiteMode", (message) => {
+    const { hostName, mode } = message.data;
+    logger.log("setSiteMode", hostName, mode);
+    return BGHelper.setSiteMode(hostName, mode);
   });
 
-  onMessage("ignoreListRemove", (message) => {
-    logger.log("ignoreListRemove", message.data);
-    if (BGHelper.ignoreList.delete(message.data))
-      storage.setItem<string[]>(
-        "local:ignore",
-        Array.from(BGHelper.ignoreList.keys())
-      );
-  });
-
-  browser.contextMenus.onClicked.addListener(function (info, tab) {
-    if (!tab?.id) return;
-
-    if (info.menuItemId === "addWords") {
-      browser.tabs
-        .sendMessage(tab.id, { action: "getSelection" })
-        .then(async (response) => {
-          if (!tab?.id) return;
-
-          let html = await getMeaning(response.word);
-          let pos = response.pos;
-          browser.tabs
-            .sendMessage(tab.id, {
-              action: "translation",
-              data: html,
-              pos: pos,
-            })
-            .then((response) => {
-              logger.log("sended!");
-            });
-        });
-    }
+  onMessage("isSupported", (message) => {
+    const hostName = message.data;
+    logger.log("isSupported", hostName);
+    const siteMode = BGHelper.getSiteMode(hostName);
+    const mode = BGHelper.mode;
+    return IsSupported(mode, siteMode);
   });
 });

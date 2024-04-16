@@ -1,27 +1,41 @@
 import { browser } from "wxt/browser";
 import "./index.less";
-import { onMessage, sendMessage } from "./common/messaging";
+import {
+  GlobalMode,
+  SitMode,
+  onMessage,
+  sendMessage,
+} from "./common/messaging";
 import { Unwatch, WatchCallback } from "wxt/storage";
 import { LemmaData } from "./common/define";
 import { logger } from "./common/logger";
 import tinycolor from "tinycolor2";
+import { IsSupported } from "./common/utils";
 
 class Setting {
-  static enable = false;
+  static mode: GlobalMode = "enable";
+  static siteMode: SitMode = "follow";
+  static enable = true;
+
   static filterPercent = 30;
-  static setEnable(value: boolean) {
-    Setting.enable = value;
+  static setEnable(value: GlobalMode) {
+    Setting.mode = value;
   }
   static setFilterPercent(value: number) {
     Setting.filterPercent = value;
   }
-  static trySetEnable(value: boolean | null | undefined) {
-    if (typeof value === "boolean") {
-      Setting.enable = value;
-      return true;
-    }
-    return false;
+  static async isSupported() {
+    return (Setting.enable = await sendMessage(
+      "isSupported",
+      location.hostname
+    ));
   }
+
+  static checkEnable() {
+    logger.log("checkEnable", Setting.mode, Setting.siteMode);
+    return (Setting.enable = IsSupported(Setting.mode, Setting.siteMode));
+  }
+
   static trySetFilterPercent(value: number | null | undefined) {
     if (typeof value === "number") {
       Setting.filterPercent = value;
@@ -34,6 +48,17 @@ class Setting {
   }
   static inRange(percent: number) {
     return percent >= Setting.filterPercent;
+  }
+  static getSiteModeFromBG() {
+    return sendMessage("getSiteMode", location.hostname);
+  }
+
+  static async load() {
+    const mode = await storage.getItem<GlobalMode>("local:mode");
+    Setting.mode = mode ?? "enable";
+    const siteMode = await Setting.getSiteModeFromBG();
+    Setting.siteMode = siteMode ?? "follow";
+    await Setting.checkEnable();
   }
 }
 
@@ -245,7 +270,7 @@ class TranslationPopup {
       {
         const deleteIcon = document.createElement("div");
         deleteIcon.classList.add(HIGHLIGHT_IGNORE_CLASS, "delete");
-        deleteIcon.textContent = "移除";
+        deleteIcon.textContent = "忽略";
 
         document.addEventListener("wheel", () => {
           TranslationPopup.hide();
@@ -295,7 +320,7 @@ class TranslationPopup {
   static hide() {
     clearTimeout(popupHideTimerId);
     popupHideTimerId = setTimeout(() => {
-      TranslationPopup.hideDirectly()
+      TranslationPopup.hideDirectly();
     }, 300);
   }
   static show() {
@@ -309,7 +334,7 @@ function isLightColor(color: string) {
 
 async function showTranslation(el: HTMLElement, word: string) {
   if (!word) return;
-  TranslationPopup.hideDirectly()
+  TranslationPopup.hideDirectly();
 
   const translation = await getTranslation(word);
   logger.log("showTranslation", translation);
@@ -583,33 +608,42 @@ export default defineContentScript({
     logger.log("Hello content.");
 
     const init = async () => {
-      const ignore = await sendMessage("ignoreListHas", location.hostname);
-      if (ignore) {
+      const support = await Setting.isSupported();
+      if (!support) {
         logger.log("ignore it");
         return;
       }
 
-      const enable = await storage.getItem<boolean>("local:enable");
+      await Setting.load();
+      const mode = Setting.mode;
       const percent = await storage.getItem<number>("local:percent");
-      logger.log("local:enable", enable);
+      logger.log("local:mode", mode);
       logger.log("local:percent", percent);
 
       Setting.trySetFilterPercent(percent);
-      if (Setting.trySetEnable(enable)) {
-        if (Setting.enable) {
-          await Helper.loadData();
+      await Helper.loadData();
+      toggleHightlightStyle();
+
+      const watchCbSiteMode = (value: SitMode, old: SitMode) => {
+        logger.log("watch site-mode", value);
+
+        if (value) {
+          Setting.siteMode = value;
+          Setting.checkEnable();
+          toggleHightlightStyle();
         }
-      }
+      };
 
-      toggleHightlightStyle(Setting.enable);
-
-      const watchCbEnable: WatchCallback<boolean | null> = (
+      const watchCbMode: WatchCallback<GlobalMode | null> = (
         newValue,
         oldValue
       ) => {
-        logger.log("watch local:enable", newValue);
-        if (Setting.trySetEnable(newValue)) {
-          toggleHightlightStyle(Setting.enable);
+        logger.log("watch local:mode", newValue);
+
+        if (newValue) {
+          Setting.mode = newValue;
+          Setting.checkEnable();
+          toggleHightlightStyle();
         }
       };
 
@@ -617,7 +651,7 @@ export default defineContentScript({
         newValue,
         oldValue
       ) => {
-        logger.log("watch local:enable", newValue);
+        logger.log("watch local:mode", newValue);
 
         if (Setting.trySetFilterPercent(newValue)) {
           if (newValue && oldValue && newValue < oldValue) {
@@ -636,12 +670,17 @@ export default defineContentScript({
         updateHightlightStyleByIgnore();
       };
       const syncSetting = async () => {
-        const enable = await storage.getItem<boolean>("local:enable");
+        const siteMode = await Setting.getSiteModeFromBG();
+        const mode = await storage.getItem<GlobalMode>("local:mode");
         const percent = await storage.getItem<number>("local:percent");
         const ignoreWord = await storage.getItem<string[]>("local:ignore-word");
 
-        if (enable !== Setting.enable) {
-          watchCbEnable(enable, Setting.enable);
+        if (siteMode !== Setting.siteMode) {
+          watchCbSiteMode(siteMode, Setting.siteMode);
+        }
+
+        if (mode !== Setting.mode) {
+          watchCbMode(mode, Setting.mode);
         }
 
         if (percent !== Setting.filterPercent) {
@@ -663,7 +702,14 @@ export default defineContentScript({
 
       const watchAll = () => {
         unwatchAll();
-        unwatchList.push(storage.watch<boolean>("local:enable", watchCbEnable));
+        unwatchList.push(
+          onMessage("notifySiteModeChanged", (message) => {
+            const siteMode = message.data;
+            if (siteMode !== Setting.siteMode)
+              watchCbSiteMode(siteMode, Setting.siteMode);
+          })
+        );
+        unwatchList.push(storage.watch<GlobalMode>("local:mode", watchCbMode));
         unwatchList.push(storage.watch<number>("local:percent", watchCbFilter));
         unwatchList.push(
           storage.watch<string[]>("local:ignore-word", watchCbIgnoreWord)

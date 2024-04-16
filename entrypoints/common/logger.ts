@@ -1,7 +1,7 @@
 const loggerDev = {
-  log: (...args: any[]) => console.log(...args),
-  time: (label: string) => console.time(label),
-  timeEnd: (label: string) => console.timeEnd(label),
+  log: console.log,
+  time: console.time,
+  timeEnd: console.timeEnd,
 };
 
 const loggerPrd = {

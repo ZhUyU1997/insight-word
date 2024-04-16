@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { ComponentRef, useEffect, useRef, useState } from "react";
 import {
   Switch,
   FormControl,
@@ -10,48 +10,57 @@ import {
   SliderThumb,
   Box,
   SliderMark,
+  Select,
+  Input,
+  Button,
 } from "@chakra-ui/react";
 import "./App.css";
-import { sendMessage } from "../common/messaging";
+import { GlobalMode, SitMode, sendMessage } from "../common/messaging";
 
-let DEFAULT_ENABLE = false;
+const wordRe = new RegExp("^[a-z][a-z-]*$");
+
+let DEFAULT_GLOBAL_MODE: GlobalMode = "enable";
 let DEFAULT_PERCENT = 30;
 
 storage
-  .getItem<boolean>("local:enable")
-  .then((value) => (DEFAULT_ENABLE = value ?? DEFAULT_ENABLE));
+  .getItem<GlobalMode>("local:mode")
+  .then((value) => (DEFAULT_GLOBAL_MODE = value ?? DEFAULT_GLOBAL_MODE));
 storage
   .getItem<number>("local:percent")
   .then((value) => (DEFAULT_PERCENT = value ?? DEFAULT_PERCENT));
 
+async function getCurrectActiveTab() {
+  const tabs = await browser.tabs.query({
+    active: true,
+    lastFocusedWindow: true,
+  });
+
+  return tabs.length >= 1 ? tabs[0] : null;
+}
+
 function App() {
-  const [checked, setChecked] = useState<boolean>(DEFAULT_ENABLE);
-  const [ignore, setIgnore] = useState<boolean>(false);
-  const [ignoreDisabled, setIgnoreDisable] = useState<boolean>(true);
+  const [globalMode, setGlobalMode] = useState<GlobalMode>(DEFAULT_GLOBAL_MODE);
+  const [siteMode, setSiteMode] = useState<SitMode>("follow");
 
   const [sliderValue, setSliderValue] = useState(DEFAULT_PERCENT);
   const [hostName, setHostName] = useState("");
 
   useEffect(() => {
     const get = async () => {
-      const value = await storage.getItem<boolean>("local:enable");
-      setChecked(value ?? DEFAULT_ENABLE);
+      const value = await storage.getItem<GlobalMode>("local:mode");
+      setGlobalMode(value ?? DEFAULT_GLOBAL_MODE);
       const percent = await storage.getItem<number>("local:percent");
       setSliderValue(percent ?? DEFAULT_PERCENT);
 
-      const tabs = await browser.tabs.query({
-        active: true,
-        lastFocusedWindow: true,
-      });
+      const tab = await getCurrectActiveTab();
 
-      const url = tabs[0].url;
+      const url = tab?.url;
 
       if (url) {
         const hostname = new URL(url).hostname;
         if (hostname) {
-          const value = await sendMessage("ignoreListHas", hostname);
-          setIgnore(value);
-          setIgnoreDisable(false);
+          const value = await sendMessage("getSiteMode", hostname);
+          setSiteMode(value);
           setHostName(hostname);
         }
       }
@@ -60,52 +69,71 @@ function App() {
     get();
   }, []);
 
+  const inputRef = useRef<ComponentRef<typeof Input>>(null);
+
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.value = "";
+  }, []);
   return (
     <FormControl display="flex" alignItems="start" flexDir="column">
       <Box display="flex" alignItems="center" mt="2" mb="2" width="100%">
         <FormLabel mb="0" flexGrow={1}>
-          开启单词高亮
+          全局高亮设置
         </FormLabel>
-        <Switch
-          isChecked={checked}
-          size="lg"
-          onChange={async (e) => {
-            setChecked(!checked);
-            storage.setItem<boolean>("local:enable", !checked);
+        <Select
+          // placeholder="跟随全局设置"
+          value={globalMode}
+          size={"sm"}
+          width={130}
+          onSelect={(e) => {
+            console.log(e.target);
           }}
-        />
+          onChange={(e) => {
+            const mode = e.target.value as GlobalMode;
+            setGlobalMode(mode);
+            storage.setItem<GlobalMode>("local:mode", mode);
+          }}
+        >
+          <option value="enable">默认开启</option>
+          <option value="disable">默认关闭</option>
+          <option value="forbidden">禁用所有</option>
+        </Select>
       </Box>
       <Box
         display="flex"
         alignItems="center"
         justifyContent="center"
-        mt="2"
         mb="2"
         width="100%"
       >
         <FormLabel mb="0" flexGrow={1}>
-          忽略当前网站，刷新生效
+          当前网站设置
         </FormLabel>
-        <Switch
-          isChecked={ignore}
-          isDisabled={ignoreDisabled}
-          size="lg"
-          onChange={async (e) => {
-            const newValue = !ignore;
-            setIgnore(newValue);
-
-            if (newValue) {
-              sendMessage("ignoreListAdd", hostName);
-            } else {
-              sendMessage("ignoreListRemove", hostName);
-            }
+        <Select
+          // placeholder="跟随全局设置"
+          value={siteMode}
+          size={"sm"}
+          width={130}
+          onSelect={(e) => {
+            console.log(e.target);
           }}
-        />
+          onChange={(e) => {
+            const mode = e.target.value as SitMode;
+            setSiteMode(mode);
+            sendMessage("setSiteMode", { hostName, mode });
+            getCurrectActiveTab().then((tab) => {
+              if (tab) sendMessage("notifySiteModeChanged", mode, tab.id);
+            });
+          }}
+        >
+          <option value="follow">跟随全局</option>
+          <option value="include">包含当前</option>
+          <option value="exclude">忽略当前</option>
+        </Select>
       </Box>
       <Box
         display="flex"
         alignItems="start"
-        mt="2"
         mb="2"
         width="100%"
         flexDir="column"
@@ -139,6 +167,61 @@ function App() {
           </SliderTrack>
           <SliderThumb />
         </Slider>
+      </Box>
+      <Box
+        display="flex"
+        alignItems="start"
+        mt="2"
+        mb="2"
+        width="100%"
+        flexDir="column"
+      >
+        <Input
+          placeholder="输入忽略单词，逗号分隔"
+          size="sm"
+          ref={inputRef}
+          defaultValue={""}
+        />
+        <Box
+          display="flex"
+          alignItems="start"
+          mt="3"
+          mb="2"
+          width="100%"
+          flexDir="row"
+          gap={2}
+        >
+          <Button
+            size="sm"
+            onClick={async () => {
+              const value = inputRef.current?.value ?? "";
+              const words = value
+                .split(",，")
+                .map((i) => i.trim().toLowerCase())
+                .filter((i) => wordRe.test(i));
+
+              const old =
+                (await storage.getItem<string[]>("local:ignore-word")) ?? [];
+
+              await storage.setItem<string[]>(
+                "local:ignore-word",
+                Array.from(new Set([...old, ...words]).keys())
+              );
+            }}
+          >
+            导入忽略单词
+          </Button>
+          <Button
+            size="sm"
+            onClick={async () => {
+              const old =
+                (await storage.getItem<string[]>("local:ignore-word")) ?? [];
+              if (inputRef.current) inputRef.current.value = old.join(",");
+            }}
+          >
+            导出忽略单词
+          </Button>
+        </Box>
       </Box>
     </FormControl>
   );
