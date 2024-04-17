@@ -2,7 +2,7 @@
   "name": "insight-word",
   "description": "find the words in web pages",
   "private": true,
-  "version": "0.8.0",
+  "version": "0.9.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",
