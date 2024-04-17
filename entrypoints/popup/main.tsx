@@ -1,9 +1,9 @@
-import { ChakraProvider } from "@chakra-ui/react";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.js";
 import "./style.css";
 import { extendTheme, type ThemeConfig } from '@chakra-ui/react'
+import { ChakraProvider } from "@chakra-ui/react";
 
 
 const config: ThemeConfig = {

@@ -5,12 +5,15 @@ specifiers:
   '@emotion/react': ^11.11.4
   '@emotion/styled': ^11.11.5
   '@fast-csv/parse': ^5.0.0
+  '@react-hookz/web': ^24.0.4
   '@types/fs-extra': ^11.0.4
   '@types/react': ^18.2.46
   '@types/react-dom': ^18.2.18
   '@types/tinycolor2': ^1.4.6
   '@vitejs/plugin-react': ^4.2.1
   '@webext-core/messaging': ^1.4.0
+  classnames: ^2.5.1
+  eventemitter3: ^5.0.1
   fast-csv: ^5.0.1
   framer-motion: ^11.0.25
   fs-extra: ^11.2.0
@@ -27,7 +30,10 @@ dependencies:
   '@chakra-ui/react': 2.8.2_abgylt5xkpb7jv5rrttbpkr55e
   '@emotion/react': 11.11.4_si3tlppmqblvktspp3wa4zdoza
   '@emotion/styled': 11.11.5_ztz3hwl5isowr6kmh3jflzmdc4
+  '@react-hookz/web': 24.0.4_biqbaboplfbrettd7655fr4n2y
   '@webext-core/messaging': 1.4.0
+  classnames: 2.5.1
+  eventemitter3: 5.0.1
   framer-motion: 11.0.25_biqbaboplfbrettd7655fr4n2y
   react: 18.2.0
   react-dom: 18.2.0_react@18.2.0
@@ -2031,6 +2037,26 @@ packages:
     resolution: {integrity: sha512-P1st0aksCrn9sGZhp8GMYwBnQsbvAWsZAX44oXNNvLHGqAOcoVxmjZiohstwQ7SqKnbR47akdNi+uleWD8+g6A==}
     dev: false
 
+  /@react-hookz/deep-equal/1.0.4:
+    resolution: {integrity: sha512-N56fTrAPUDz/R423pag+n6TXWbvlBZDtTehaGFjK0InmN+V2OFWLE/WmORhmn6Ce7dlwH5+tQN1LJFw3ngTJVg==}
+    dev: false
+
+  /@react-hookz/web/24.0.4_biqbaboplfbrettd7655fr4n2y:
+    resolution: {integrity: sha512-DcIM6JiZklDyHF6CRD1FTXzuggAkQ+3Ncq2Wln7Kdih8GV6ZIeN9JfS6ZaQxpQUxan8/4n0J2V/R7nMeiSrb2Q==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      js-cookie: ^3.0.5
+      react: ^16.8 || ^17 || ^18
+      react-dom: ^16.8 || ^17 || ^18
+    peerDependenciesMeta:
+      js-cookie:
+        optional: true
+    dependencies:
+      '@react-hookz/deep-equal': 1.0.4
+      react: 18.2.0
+      react-dom: 18.2.0_react@18.2.0
+    dev: false
+
   /@rollup/pluginutils/5.1.0:
     resolution: {integrity: sha512-XTIWOPPcpvyKI6L1NHo0lFlCyznUEyPmPY1mc3KpPVDYulHSTvyeLNVW00QTLIAFNhR3kYnJTQHeGqU4M3n09g==}
     engines: {node: '>=14.0.0'}
@@ -2693,6 +2719,10 @@ packages:
       consola: 3.2.3
     dev: true
 
+  /classnames/2.5.1:
+    resolution: {integrity: sha512-saHYOzhIQs6wy2sVxTM6bUDsQO4F50V9RQ22qBpEdCW+I+/Wmke2HOl6lS6dTpdxVhb88/I6+Hs+438c3lfUow==}
+    dev: false
+
   /cli-boxes/3.0.0:
     resolution: {integrity: sha512-/lzGpEWL/8PfI0BmBOPRwp0c/wFNX1RdUML3jK/RcSBA9T8mZDdQpqYBKtCFTOfQbwPqWEOpjqW+Fnayc0969g==}
     engines: {node: '>=10'}
@@ -3218,7 +3248,6 @@ packages:
 
   /eventemitter3/5.0.1:
     resolution: {integrity: sha512-GWkBvjiSZK87ELrYOSESUYeVIc9mvLLf/nXalMOS5dYrgZq9o5OVkbZAVM06CVxYsCwH9BDZFPlQTlPA1j4ahA==}
-    dev: true
 
   /execa/5.1.1:
     resolution: {integrity: sha512-8uSpZZocAZRBAPIEINJj3Lo9HyGitllczc27Eh5YYojjMFMn8yHMDMaUHE2Jqfq05D/wucwI4JGURyXt1vchyg==}
