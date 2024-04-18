@@ -8,7 +8,6 @@ import "./App.less";
 import useEventCallback from "./use-event-callback";
 import { Helper } from "./helper";
 import { Highlight } from "./highlight";
-import { useToast } from "@chakra-ui/react";
 
 export const WordEvent = new EventEmitter<"mouseenter" | "mouseleave">();
 
@@ -119,7 +118,6 @@ function IsWordOnScreen(el: HTMLElement) {
 }
 
 export function App() {
-  const toast = useToast();
   const [show, setShow] = useState(false);
   const [content, setContent] = useState("");
   const [lemma, setLemma] = useState("");
@@ -211,13 +209,7 @@ export function App() {
           logger.log("############# IsWordOnScreen", isOn);
           if (!isOn) {
             wordRef.current.classList.add(Highlight.IGNORE_CLASS);
-            toast({
-              description: "“单词洞察力”发现交互异常，已帮您移除单词",
-              status: "warning",
-              duration: 1500,
-              position:"top",
-              isClosable: true,
-            });
+            logger.log("“单词洞察力”发现交互异常，已帮您移除单词");
             execute();
             return;
           }
