@@ -14,7 +14,7 @@ export default defineConfig({
     },
   },
   runner: {
-    startUrls: ["https://developer.mozilla.org/en-US/", "https://github.com/ZhUyU1997/meui"],
+    startUrls: ["https://developer.mozilla.org/en-US/", "https://github.com/ZhUyU1997/meui", "https://mozilla.github.io/pdf.js/web/viewer.html"],
     chromiumArgs: ["--window-size=400x300"],
   },
 });

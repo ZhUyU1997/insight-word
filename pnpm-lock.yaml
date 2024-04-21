@@ -5,6 +5,7 @@ specifiers:
   '@emotion/react': ^11.11.4
   '@emotion/styled': ^11.11.5
   '@fast-csv/parse': ^5.0.0
+  '@monaco-editor/react': ^4.6.0
   '@react-hookz/web': ^24.0.4
   '@types/fs-extra': ^11.0.4
   '@types/prompts': ^2.4.9
@@ -21,6 +22,7 @@ specifiers:
   framer-motion: ^11.0.25
   fs-extra: ^11.2.0
   less: ^4.2.0
+  monaco-editor: ^0.47.0
   prompts: ^2.4.2
   react: ^18.2.0
   react-dom: ^18.2.0
@@ -35,11 +37,13 @@ dependencies:
   '@chakra-ui/react': 2.8.2_abgylt5xkpb7jv5rrttbpkr55e
   '@emotion/react': 11.11.4_si3tlppmqblvktspp3wa4zdoza
   '@emotion/styled': 11.11.5_ztz3hwl5isowr6kmh3jflzmdc4
+  '@monaco-editor/react': 4.6.0_aoztcrwqwiqmm75ip6pffcnv2q
   '@react-hookz/web': 24.0.4_biqbaboplfbrettd7655fr4n2y
   '@webext-core/messaging': 1.4.0
   classnames: 2.5.1
   eventemitter3: 5.0.1
   framer-motion: 11.0.25_biqbaboplfbrettd7655fr4n2y
+  monaco-editor: 0.47.0
   prompts: 2.4.2
   react: 18.2.0
   react-dom: 18.2.0_react@18.2.0
@@ -2000,6 +2004,28 @@ packages:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.4.15
     dev: true
+
+  /@monaco-editor/loader/1.4.0_monaco-editor@0.47.0:
+    resolution: {integrity: sha512-00ioBig0x642hytVspPl7DbQyaSWRaolYie/UFNjoTdvoKPzo6xrXLhTk9ixgIKcLH5b5vDOjVNiGyY+uDCUlg==}
+    peerDependencies:
+      monaco-editor: '>= 0.21.0 < 1'
+    dependencies:
+      monaco-editor: 0.47.0
+      state-local: 1.0.7
+    dev: false
+
+  /@monaco-editor/react/4.6.0_aoztcrwqwiqmm75ip6pffcnv2q:
+    resolution: {integrity: sha512-RFkU9/i7cN2bsq/iTkurMWOEErmYcY6JiQI3Jn+WeR/FGISH8JbHERjpS9oRuSOPvDMJI0Z8nJeKkbOs9sBYQw==}
+    peerDependencies:
+      monaco-editor: '>= 0.25.0 < 1'
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0
+      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0
+    dependencies:
+      '@monaco-editor/loader': 1.4.0_monaco-editor@0.47.0
+      monaco-editor: 0.47.0
+      react: 18.2.0
+      react-dom: 18.2.0_react@18.2.0
+    dev: false
 
   /@nodelib/fs.scandir/2.1.5:
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -4334,6 +4360,10 @@ packages:
     dev: true
     optional: true
 
+  /monaco-editor/0.47.0:
+    resolution: {integrity: sha512-VabVvHvQ9QmMwXu4du008ZDuyLnHs9j7ThVFsiJoXSOQk18+LF89N4ADzPbFenm0W4V2bGHnFBztIRQTgBfxzw==}
+    dev: false
+
   /ms/2.0.0:
     resolution: {integrity: sha512-Tpp60P6IUJDTuOq/5Z8cdskzJujfwqfOTkrwIwj7IRISpnkJnT6SyJ4PCPnGMoFjC9ddhal5KVIYtAt97ix05A==}
     dev: true
@@ -5232,6 +5262,10 @@ packages:
     dependencies:
       through: 2.3.8
     dev: true
+
+  /state-local/1.0.7:
+    resolution: {integrity: sha512-HTEHMNieakEnoe33shBYcZ7NX83ACUjCu8c40iOGEZsngj9zRnkqS9j1pqQPXwobB0ZcVTk27REb7COQ0UR59w==}
+    dev: false
 
   /stdin-discarder/0.1.0:
     resolution: {integrity: sha512-xhV7w8S+bUwlPTb4bAOUQhv8/cSS5offJuX8GQGq32ONF0ZtDWKfkdomM3HMRA+LhX6um/FZ0COqlwsjD53LeQ==}

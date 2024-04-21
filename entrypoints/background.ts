@@ -5,9 +5,10 @@ import {
   SiteModeStorage,
   onMessage,
 } from "./common/messaging";
-import { LemmaData } from "./common/define";
 import { logger } from "./common/logger";
 import { IsSupported } from "./common/utils";
+import { safeStorage } from "./common/storage";
+import { DEFAULT_HIGHLIGHT_STYLE } from "./common/style";
 
 async function loadJsonFile(path: PublicPath) {
   const file_path = browser.runtime.getURL(path);
@@ -62,33 +63,36 @@ class BGHelper {
     }
   }
   static loadSiteMode() {
-    return storage.getItem<SiteModeStorage>("local:site-mode").then((data) => {
-      if (!data) storage.setItem<SiteModeStorage>("local:site-mode", {});
+    return safeStorage.getItem("local:site-mode").then((data) => {
+      if (!data) safeStorage.setItem("local:site-mode", {});
       BGHelper.siteModeRecord = data ?? {};
     });
   }
 
   static async loadMode() {
-    const mode = await storage.getItem<GlobalMode>("local:mode");
-    if (!mode) storage.setItem<GlobalMode>("local:mode", "enable");
+    const mode = await safeStorage.getItem("local:mode");
+    if (!mode) safeStorage.setItem("local:mode", "enable");
 
-    storage.watch<GlobalMode>("local:mode", (newValue) => {
+    safeStorage.watch("local:mode", (newValue) => {
       BGHelper.mode = newValue ?? "enable";
     });
     BGHelper.mode = mode ?? "enable";
   }
   static syncSiteModeToStorage() {
-    return storage.setItem<SiteModeStorage>(
-      "local:site-mode",
-      BGHelper.siteModeRecord
-    );
+    return safeStorage.setItem("local:site-mode", BGHelper.siteModeRecord);
   }
 
   static async load() {
-    const precent = await storage.getItem<number>("local:percent");
-    if (!precent) storage.setItem<number>("local:percent", 30);
-    const ignore = storage.getItem<string[]>("local:ignore-word");
-    if (!ignore) storage.setItem<string[]>("local:ignore-word", []);
+    const precent = await safeStorage.getItem("local:percent");
+    if (!precent) safeStorage.setItem("local:percent", 30);
+    const ignore = await safeStorage.getItem("local:ignore-word");
+    if (!ignore) safeStorage.setItem("local:ignore-word", []);
+
+    const preference = await safeStorage.getItem("local:preference");
+    if (!preference)
+      safeStorage.setItem("local:preference", {
+        highlight: DEFAULT_HIGHLIGHT_STYLE,
+      });
 
     await BGHelper.loadSiteMode();
     await BGHelper.loadMode();
@@ -100,10 +104,10 @@ export default defineBackground(async () => {
   logger.log("Hello background!", { id: browser.runtime.id });
   browser.runtime.onInstalled.addListener(() => {
     loadRankFile().then((data) => {
-      storage.setItem<string[]>("local:rank", data);
+      safeStorage.setItem("local:rank", data);
     });
     loadLemmaFile().then((data) => {
-      storage.setItem<LemmaData>("local:lemma", data);
+      safeStorage.setItem("local:lemma", data);
     });
   });
 
@@ -133,5 +137,55 @@ export default defineBackground(async () => {
     const siteMode = BGHelper.getSiteMode(hostName);
     const mode = BGHelper.mode;
     return IsSupported(mode, siteMode);
+  });
+  onMessage("replaceCSS", async (message) => {
+    const { old, css } = message.data;
+    logger.log("injectCSS", css);
+    const tabId = message.sender?.tab?.id;
+
+    if (tabId) {
+      await browser.scripting.removeCSS({
+        css: old,
+        target: {
+          allFrames: true,
+          tabId,
+        },
+      });
+      browser.scripting.insertCSS({
+        css,
+        target: {
+          allFrames: true,
+          tabId,
+        },
+      });
+    }
+  });
+  onMessage("injectCSS", (message) => {
+    const { css } = message.data;
+    logger.log("injectCSS", css);
+    const tabId = message.sender?.tab?.id;
+
+    if (tabId)
+      browser.scripting.insertCSS({
+        css,
+        target: {
+          allFrames: true,
+          tabId,
+        },
+      });
+  });
+  onMessage("removeCSS", (message) => {
+    const { css } = message.data;
+    logger.log("removeCSS", css);
+    const tabId = message.sender?.tab?.id;
+
+    if (tabId)
+      browser.scripting.removeCSS({
+        css,
+        target: {
+          allFrames: true,
+          tabId,
+        },
+      });
   });
 });

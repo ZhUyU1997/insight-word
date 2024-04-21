@@ -1,13 +1,17 @@
 import { logger } from "../common/logger";
 import { GlobalMode, SitMode, sendMessage } from "../common/messaging";
+import { Preference, safeStorage } from "../common/storage";
+import { DEFAULT_HIGHLIGHT_STYLE } from "../common/style";
 import { IsSupported } from "../common/utils";
 
 export class Setting {
   static mode: GlobalMode = "enable";
   static siteMode: SitMode = "follow";
   static enable = true;
-
   static filterPercent = 30;
+  static preference: Preference = {
+    highlight: DEFAULT_HIGHLIGHT_STYLE,
+  };
   static setEnable(value: GlobalMode) {
     Setting.mode = value;
   }
@@ -44,10 +48,16 @@ export class Setting {
   }
 
   static async load() {
-    const mode = await storage.getItem<GlobalMode>("local:mode");
-    Setting.mode = mode ?? "enable";
+    const mode = await safeStorage.getItem("local:mode");
+    Setting.mode = mode ?? Setting.mode;
     const siteMode = await Setting.getSiteModeFromBG();
-    Setting.siteMode = siteMode ?? "follow";
-    await Setting.checkEnable();
+    Setting.siteMode = siteMode ?? Setting.siteMode;
+    const preference = await safeStorage.getItem("local:preference");
+    Setting.preference = preference ?? Setting.preference;
+    if (await Setting.checkEnable()) {
+      sendMessage("injectCSS", {
+        css: Setting.preference.highlight,
+      });
+    }
   }
 }

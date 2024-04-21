@@ -1,18 +1,24 @@
 import "./index.less";
-import { GlobalMode, SitMode, onMessage } from "./common/messaging";
+import {
+  GlobalMode,
+  SitMode,
+  onMessage,
+  sendMessage,
+} from "./common/messaging";
 import { Unwatch, WatchCallback } from "wxt/storage";
 import { logger } from "./common/logger";
 import Render from "./page/render";
 import { Helper } from "./page/helper";
 import { Setting } from "./page/setting";
 import { Highlight } from "./page/highlight";
+import { Preference, safeStorage } from "./common/storage";
 
 export default defineContentScript({
   matches: ["*://*/*"],
   allFrames: true,
   runAt: "document_idle",
 
-  async main(ctx) {
+  async main(ctx: any) {
     logger.log("Hello content.");
     const support = await Setting.isSupported();
     if (!support) {
@@ -22,7 +28,7 @@ export default defineContentScript({
 
     await Setting.load();
     const mode = Setting.mode;
-    const percent = await storage.getItem<number>("local:percent");
+    const percent = await safeStorage.getItem("local:percent");
     logger.log("local:mode", mode);
     logger.log("local:percent", percent);
 
@@ -75,11 +81,24 @@ export default defineContentScript({
       if (newValue) Helper.updataIgnore(newValue);
       Highlight.updateStyleByIgnore();
     };
+
+    const watchCbPreference: WatchCallback<Preference | null> = (
+      newValue,
+      oldValue
+    ) => {
+      logger.log("watch local:preference", newValue);
+      if (newValue) {
+        const old = Setting.preference.highlight;
+        Setting.preference = newValue;
+        sendMessage("replaceCSS", { old, css: Setting.preference.highlight });
+      }
+    };
     const syncSetting = async () => {
       const siteMode = await Setting.getSiteModeFromBG();
-      const mode = await storage.getItem<GlobalMode>("local:mode");
-      const percent = await storage.getItem<number>("local:percent");
-      const ignoreWord = await storage.getItem<string[]>("local:ignore-word");
+      const mode = await safeStorage.getItem("local:mode");
+      const percent = await safeStorage.getItem("local:percent");
+      const ignoreWord = await safeStorage.getItem("local:ignore-word");
+      const preference = await safeStorage.getItem("local:preference");
 
       if (siteMode !== Setting.siteMode) {
         watchCbSiteMode(siteMode, Setting.siteMode);
@@ -94,6 +113,10 @@ export default defineContentScript({
       }
       if (ignoreWord?.length !== Helper.ignoreSet.size) {
         watchCbIgnoreWord(ignoreWord, []);
+      }
+
+      if (preference?.highlight !== Setting.preference.highlight) {
+        watchCbPreference(preference, Setting.preference);
       }
     };
 
@@ -115,10 +138,13 @@ export default defineContentScript({
             watchCbSiteMode(siteMode, Setting.siteMode);
         })
       );
-      unwatchList.push(storage.watch<GlobalMode>("local:mode", watchCbMode));
-      unwatchList.push(storage.watch<number>("local:percent", watchCbFilter));
+      unwatchList.push(safeStorage.watch("local:mode", watchCbMode));
+      unwatchList.push(safeStorage.watch("local:percent", watchCbFilter));
       unwatchList.push(
-        storage.watch<string[]>("local:ignore-word", watchCbIgnoreWord)
+        safeStorage.watch("local:ignore-word", watchCbIgnoreWord)
+      );
+      unwatchList.push(
+        safeStorage.watch("local:preference", watchCbPreference)
       );
     };
 
