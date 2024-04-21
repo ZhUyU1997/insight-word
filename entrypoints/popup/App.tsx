@@ -24,7 +24,19 @@ import {
 } from "@chakra-ui/react";
 import "./App.css";
 import { GlobalMode, SitMode, sendMessage } from "../common/messaging";
-import * as monaco from "monaco-editor";
+import * as monaco from "./editor";
+import cssWorker from "monaco-editor/esm/vs/language/css/css.worker?worker";
+import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
+
+self.MonacoEnvironment = {
+  getWorker(_, label) {
+    if (label === "css" || label === "scss" || label === "less") {
+      return new cssWorker();
+    }
+    return new editorWorker();
+  },
+};
+
 import Editor, { loader } from "@monaco-editor/react";
 import { safeStorage } from "../common/storage";
 import {
