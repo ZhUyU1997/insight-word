@@ -8,13 +8,18 @@ export default defineConfig({
   }),
   manifest: {
     name: "单词洞察力",
-    permissions: ["contextMenus", "storage", "tabs"],
+    permissions: ["contextMenus", "storage", "tabs", "scripting"],
+    host_permissions: ["http://*/*", "https://*/*"],
     action: {
       default_title: "配置",
     },
   },
   runner: {
-    startUrls: ["https://developer.mozilla.org/en-US/", "https://github.com/ZhUyU1997/meui", "https://mozilla.github.io/pdf.js/web/viewer.html"],
+    startUrls: [
+      "https://developer.mozilla.org/en-US/",
+      "https://github.com/ZhUyU1997/meui",
+      "https://mozilla.github.io/pdf.js/web/viewer.html",
+    ],
     chromiumArgs: ["--window-size=400x300"],
   },
 });

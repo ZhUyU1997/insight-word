@@ -14,7 +14,7 @@ import { Highlight } from "./page/highlight";
 import { Preference, safeStorage } from "./common/storage";
 
 export default defineContentScript({
-  matches: ["*://*/*"],
+  matches: ["http://*/*", "https://*/*"],
   allFrames: true,
   runAt: "document_idle",
 
