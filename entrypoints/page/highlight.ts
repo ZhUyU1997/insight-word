@@ -19,7 +19,7 @@ function onClick(e: MouseEvent) {
   if (el && el.textContent) {
     if (!getTranslationFromCache(el.textContent)) {
       const url = new URL(
-        "https://translate.google.com/?sl=en&tl=zh&text=&op=translate"
+        "https://translate.google.com/details?sl=auto&tl=zh-CN&text=&op=translate"
       );
       url.searchParams.set("text", el.textContent?.trim());
       open(url.href);
